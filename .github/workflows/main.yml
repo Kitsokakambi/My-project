@@ -1,0 +1,105 @@
+name: Deploy Azure Infrastructure with Bicep
+
+on:
+  push:
+    branches: [ main ]  # Ensure this matches your default branch name
+    paths:
+      - '**/*.bicep'
+      - '.github/workflows/deploy.yml'
+  workflow_dispatch:
+
+env:
+  RESOURCE_GROUP_NAME: tshop-rg   # Changed from swiftcart-rg to tshop-rg
+  LOCATION: eastus
+  BICEP_FILE: MY_PROJECT/T-shop-iac/main.bicep  # Path adjusted to match your folder structure
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: production
+    permissions:
+      id-token: write
+      contents: read
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Azure Login
+      uses: azure/login@v1
+      with:
+        creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+    - name: Create Resource Group
+      run: |
+        az group create --name ${{ env.RESOURCE_GROUP_NAME }} --location ${{ env.LOCATION }} || echo "Resource group already exists."
+
+    - name: Deploy Bicep Template
+      uses: azure/arm-deploy@v1
+      with:
+        scope: resourcegroup
+        region: ${{ env.LOCATION }}
+        subscriptionId: ${{ secrets.AZURE_SUBSCRIPTION }}
+        resourceGroupName: ${{ env.RESOURCE_GROUP_NAME }}
+        template: ./MY_PROJECT/T-shop-iac/main.bicep  # Adjusted template path
+        parameters: ./MY_PROJECT/T-shop-iac/azuredeploy.parameters.json  # Adjusted parameters file path
+        dbName: ${{ secrets.DB_NAME }}
+        dbPassword: ${{ secrets.DB_PASSWORD }}
+        dbUser: ${{ secrets.DB_USERNAME }}
+        dbConnection: ${{ secrets.DB_CONNECTION }}
+        dbPort: ${{ secrets.DB_PORT }}
+        dbHost: ${{ secrets.DB_HOST }}
+
+    - name: Get outputs
+      id: get-outputs
+      run: |
+        echo "aksClusterName=$(az deployment sub show \
+          --name "gh-aks-deploy-$(date +'%Y%m%d-%H%M%S')" \
+          --query "properties.outputs.aksClusterName.value" -o tsv)" >> $GITHUB_OUTPUT
+        
+        echo "appGatewayPublicIp=$(az deployment sub show \
+          --name "gh-aks-deploy-$(date +'%Y%m%d-%H%M%S')" \
+          --query "properties.outputs.appGatewayPublicIp.value" -o tsv)" >> $GITHUB_OUTPUT
+
+    - name: Save outputs
+      run: |
+        echo "AKS Cluster Name: ${{ steps.get-outputs.outputs.aksClusterName }}"
+        echo "Application Gateway IP: ${{ steps.get-outputs.outputs.appGatewayPublicIp }}"
+
+    - name: Get AKS name that contains 'tshop'
+      id: get-aks
+      run: |
+        # Find AKS that contains 'tshop' in the name
+        AKS_NAME=$(az aks list --query "[?contains(name, 'T-shop')].name" -o tsv)
+        echo "AKS_NAME=$AKS_NAME" >> $GITHUB_ENV
+
+    - name: Connect to cluster
+      if: ${{ env.AKS_NAME != '' }}
+      id: connect-to-cluster
+      run: |
+        az aks get-credentials --resource-group tshop-rg --name ${{ env.AKS_NAME }}
+
+    - name: Get ACR name and login server (contains 'tshop')
+      id: get-acr
+      run: |
+        ACR_NAME=$(az acr list --query "[?contains(name, 'tshop')].name" -o tsv)
+
+        if [ -z "$ACR_NAME" ]; then
+            echo "No ACR found containing 'tshop'. Exiting."
+        else
+            ACR_SERVER=$(az acr show --name "$ACR_NAME" --query "loginServer" -o tsv)
+            echo "ACR_SERVER=$ACR_SERVER" >> $GITHUB_ENV
+            echo "ACR_NAME=$ACR_NAME" >> $GITHUB_ENV
+            echo "ACR_NAME: $ACR_NAME"
+            echo "ACR_SERVER: $ACR_SERVER"
+        fi
+
+    - name: Set up Grafana and Prometheus
+      run: |
+        kubectl apply --server-side -f manifests/setup
+        kubectl wait --for condition=Established --all CustomResourceDefinition --namespace=monitoring
+        kubectl apply -f manifests/
+
+    - name: Set Up Ingress Controller
+      run: |
+        kubectl apply -f manifests/ingress

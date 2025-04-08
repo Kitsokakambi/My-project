@@ -1,0 +1,73 @@
+{
+    "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+      "clusterName": {
+        "value": "aksTshopCluster"
+      },
+      "dnsPrefix": {
+        "value": "aks-tshop"
+      },
+      "osDiskSizeGB": {
+        "value": 30
+      },
+      "agentCount": {
+        "value": 2
+      },
+      "agentVMSize": {
+        "value": "Standard_B2s"
+      },
+      "linuxAdminUsername": {
+        "value": "azureuser"
+      },
+      "sshRSAPublicKey": {
+        "value": "bBB0hGP2K3sB/HGjprXv1t47v1RcqgunewohBbVS/Nc"
+      },
+      "dbHost": {
+        "value": "db03.mysql.database.azure.com"
+      },
+      "dbUser": {
+        "value": "adminuser@db03"
+      },
+      "dbPassword": {
+        "value": "74551162dada"
+      },
+      "dbName": {
+        "value": "flexibleserverdb"
+      },
+      "dbPort": {
+        "value": "3306"
+      },
+      "dbConnection": {
+        "value": "Server=db03.mysql.database.azure.com;Database=flexibleserverdb;User Id=adminuser@db03;Password=74551162dada;"
+      },
+      "acrName": {
+        "value": "tshopacr1234"
+      },
+      "appGatewayName": {
+        "value": "tshop-app-gateway"
+      },
+      "appServicePlanName": {
+        "value": "tshop-app-service-plan"
+      },
+      "webAppName": {
+        "value": "tshop-webapp1234"
+      },
+      "containerImage": {
+        "value": "tshop-product-service:latest"
+      },
+      "aksServicePrincipalClientId": {
+        "value": "4704213d-33b5-469d-84c5-72ea35c21bcc"
+      },
+      "vnetName": {
+        "value": "tshop-vnet"
+      },
+      "publicSubnetName": {
+        "value": "tshop-public-subnet"
+      },
+      "privateSubnetName": {
+        "value": "tshop-private-subnet"
+      }
+    }
+  }
+  
